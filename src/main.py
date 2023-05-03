@@ -1,55 +1,73 @@
 import pygame, pathlib
 from pygame.locals import *
+from wall import Wall as Wall
+from player import Player as Player
 
+SCORE = 0
+WALLS = []
+WIDTH, HEIGHT = 854, 480
 ASSETS_PATH = pathlib.Path(__file__).parent.parent.joinpath("assets")
 
-def create_wall(screen: 'pygame.Surface'):
-    pass
+def render_walls(screen: 'pygame.Surface'):
+    global WALLS
 
+    wall_exists = len(WALLS) > 0
+
+    if (wall_exists and WALLS[-1].enough_space()) or not wall_exists:
+        WALLS.append(Wall(WIDTH)) # create a new wall if there's enough space from the previous wall OR if there isn't a wall at all
+
+    for wall in WALLS:
+        if wall.is_off_screen(screen):
+            WALLS.remove(wall)
+            continue
+
+        wall.blit(screen)
 
 if __name__ == "__main__":
     pygame.init()
 
-    screen = pygame.display.set_mode((854, 480))
-    playerSource = pygame.image.load(pathlib.Path(ASSETS_PATH, "bunny.png"))
     clock = pygame.time.Clock()
+    screen = pygame.display.set_mode((WIDTH, HEIGHT))
+    player = Player(screen)
+
     running = True
-    
-    player = pygame.transform.smoothscale(playerSource, (playerSource.get_width() / 10, playerSource.get_height() / 10))
-    playerX = screen.get_width() / 2
-    playerY = screen.get_height() - player.get_width()
-    i = "left"
+    lost = False
+    final_render = False
 
     while running:
+        clock.tick(60)
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
 
-        playerKeys = pygame.key.get_pressed()
-        speed = 4
-        
-        if playerKeys[pygame.K_LSHIFT]:
-            speed = 8
-        if playerKeys[pygame.K_a]:
-            playerX -= speed
-            if i == "right":
-                player = pygame.transform.flip(player, True, False)
-                i = "left"
-        if playerKeys[pygame.K_d]:
-            playerX += speed
-            if i == "left":
-                player = pygame.transform.flip(player, True, False)
-                i = "right"
-        if playerKeys[pygame.K_w]:
-            playerY -= speed
-        if playerKeys[pygame.K_s]:
-            playerY += speed
-        
-        
-        screen.fill((0, 0, 0))
-        screen.blit(player, (playerX, playerY))
-        pygame.display.flip()
-        
+        screen.fill((255, 255, 255))
+
+        Wall.set_speed(1 * (1 + SCORE)) # scales with score :D
+
+        render_walls(screen)
+        player.blit(screen)
+
+        for wall in WALLS:
+            if wall.has_player_collided(player):
+                lost = True
+            if wall.is_half_passed_gap(player):
+                SCORE += 1
+
+        font = pygame.font.SysFont(pygame.font.get_default_font(), 32)
+        text = font.render(f"Score: {SCORE}", True, (0, 0, 0))
+
+        screen.blit(text, (0, screen.get_height() - text.get_height()))
+
+        if lost:
+            game_over_text = font.render(f"Game over! Your score was {SCORE}!", True, (0, 0, 0))
+            screen.blit(game_over_text, ((screen.get_width() - game_over_text.get_width()) / 2, (screen.get_height() - game_over_text.get_height()) / 2))
+
+            if not final_render:
+                pygame.display.flip() # final flip, no more rendering past this point
+                final_render = True
+
+        if not lost: # prevent rendering after loss, we handle the last flip ourselves
+            pygame.display.flip()
+
         clock.tick(60)
-                
-    pygame.quit()
